@@ -1,0 +1,13 @@
+{
+  "name": "solar-system-3d",
+  "version": "1.0.0",
+  "description": "3D Solar System Explorer with NASA textures",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

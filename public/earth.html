@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earth Monitor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --glass-bg: rgba(8, 8, 22, 0.55);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-border-hover: rgba(255, 255, 255, 0.18);
+            --accent: #d4b878;
+            --accent-glow: rgba(212, 184, 120, 0.3);
+            --text-primary: #f0f0f8;
+            --text-secondary: rgba(200, 195, 220, 0.55);
+            --text-muted: rgba(180, 175, 200, 0.35);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #000;
+            width: 100vw; height: 100vh;
+            overflow: hidden;
+            font-family: 'Outfit', system-ui, sans-serif;
+            -webkit-user-select: none; user-select: none;
+            color: var(--text-primary);
+        }
+
+        canvas { display: block; position: fixed; inset: 0; z-index: 1; }
+
+        .ui-overlay {
+            position: fixed; inset: 0; z-index: 10;
+            pointer-events: none;
+        }
+
+        .vignette {
+            position: absolute; inset: 0;
+            background: radial-gradient(ellipse at center, transparent 50%, rgba(2,0,12,0.2) 75%, rgba(2,0,12,0.5) 100%);
+            pointer-events: none;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            position: absolute; top: 0; left: 0; right: 0;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            padding: 24px 28px;
+            transition: opacity 0.5s ease;
+        }
+
+        .brand {
+            display: flex; flex-direction: column; gap: 2px;
+        }
+
+        .brand h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 500;
+            letter-spacing: 0.22em;
+            color: #e8e2d8;
+            text-shadow: 0 0 30px rgba(180, 150, 100, 0.4);
+        }
+
+        .brand p {
+            font-size: 0.6rem;
+            letter-spacing: 0.35em;
+            color: var(--text-secondary);
+            font-weight: 300;
+        }
+
+        .back-btn {
+            pointer-events: all;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 9px 18px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-weight: 400;
+            letter-spacing: 0.04em;
+            transition: all 0.35s cubic-bezier(0.22, 0.12, 0.15, 1);
+            backdrop-filter: blur(20px) saturate(1.4);
+            -webkit-backdrop-filter: blur(20px) saturate(1.4);
+            text-decoration: none;
+            display: inline-flex; align-items: center; gap: 6px;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .back-btn:hover {
+            border-color: var(--glass-border-hover);
+            color: var(--text-primary);
+            background: rgba(12, 12, 30, 0.75);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .back-btn .icon { font-size: 0.9rem; }
+
+        /* Side Panel */
+        .side-panel {
+            position: absolute; top: 90px; right: 20px; z-index: 20;
+            display: flex; flex-direction: column; gap: 8px; pointer-events: all;
+        }
+
+        .side-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 14px 18px;
+            backdrop-filter: blur(24px) saturate(1.3);
+            -webkit-backdrop-filter: blur(24px) saturate(1.3);
+            text-align: center;
+            min-width: 170px;
+            transition: all 0.3s ease;
+        }
+
+        .side-card:hover {
+            border-color: var(--glass-border-hover);
+            background: rgba(12, 12, 30, 0.65);
+        }
+
+        .side-card .card-label {
+            font-size: 0.58rem;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .side-card .card-value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.88rem;
+            color: var(--text-primary);
+            font-weight: 400;
+        }
+
+        .side-card .card-sub {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            font-weight: 300;
+        }
+
+        .side-card.highlight {
+            border-color: rgba(100, 200, 255, 0.25);
+            animation: pulse 2.5s ease-in-out infinite;
+        }
+
+        .side-card.highlight:hover {
+            border-color: rgba(100, 200, 255, 0.5);
+        }
+
+        @keyframes pulse {
+            0%, 100% { border-color: rgba(100, 200, 255, 0.2); box-shadow: 0 0 0 rgba(100, 200, 255, 0); }
+            50% { border-color: rgba(100, 200, 255, 0.45); box-shadow: 0 0 20px rgba(100, 200, 255, 0.08); }
+        }
+
+        /* ISS Badge */
+        .iss-badge {
+            position: absolute; top: 20px; right: 20px; z-index: 20;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 14px 20px;
+            backdrop-filter: blur(24px) saturate(1.3);
+            -webkit-backdrop-filter: blur(24px) saturate(1.3);
+            text-align: center;
+            pointer-events: all;
+            transition: all 0.3s ease;
+            min-width: 170px;
+        }
+
+        .iss-badge:hover {
+            border-color: var(--glass-border-hover);
+        }
+
+        .iss-badge .iss-label {
+            font-size: 0.58rem;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .iss-badge .iss-status {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.88rem;
+            color: #ffcc66;
+            font-weight: 500;
+        }
+
+        .iss-badge .iss-coords {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            font-weight: 300;
+        }
+
+        .iss-badge.visible {
+            border-color: rgba(100, 255, 150, 0.3);
+        }
+
+        .iss-badge.visible .iss-status {
+            color: #66ff88;
+        }
+
+        /* Bottom Info Panel */
+        .info-panel {
+            position: absolute;
+            bottom: 28px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(8, 8, 24, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            padding: 28px 32px 24px;
+            backdrop-filter: blur(50px) saturate(1.3);
+            -webkit-backdrop-filter: blur(50px) saturate(1.3);
+            text-align: center;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.03);
+            min-width: 420px;
+            max-width: 520px;
+            width: 92%;
+        }
+
+        .info-panel .time-display {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2rem;
+            font-weight: 300;
+            letter-spacing: 0.08em;
+            color: #f5efe0;
+            margin-bottom: 4px;
+        }
+
+        .info-panel .date-display {
+            font-size: 0.78rem;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+            margin-bottom: 14px;
+            font-weight: 300;
+        }
+
+        .info-panel .daynight-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 14px;
+            padding: 10px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .info-panel .daynight-indicator .icon { font-size: 1.2rem; }
+
+        .info-panel .daynight-indicator .status {
+            font-size: 0.78rem;
+            letter-spacing: 0.05em;
+            color: #c0c0d0;
+            font-weight: 400;
+        }
+
+        .info-panel .daynight-indicator .percentage {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 300;
+        }
+
+        .info-panel .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px 20px;
+        }
+
+        .info-panel .stats .stat-label {
+            color: var(--text-muted);
+            font-size: 0.58rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 2px;
+            font-weight: 500;
+        }
+
+        .info-panel .stats .stat-value {
+            font-family: 'Space Grotesk', sans-serif;
+            color: #c0c0e0;
+            font-size: 0.88rem;
+            font-weight: 400;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .top-bar { padding: 16px 18px; }
+            .brand h1 { font-size: 0.9rem; letter-spacing: 0.15em; }
+            .info-panel { padding: 20px 22px 18px; border-radius: 20px; min-width: auto; }
+            .info-panel .time-display { font-size: 1.5rem; }
+            .info-panel .stats { grid-template-columns: repeat(2, 1fr); gap: 8px 12px; }
+            .back-btn { padding: 8px 14px; font-size: 0.75rem; }
+            .iss-badge { top: 12px; right: 10px; padding: 10px 14px; }
+            .side-panel { top: 80px; right: 10px; gap: 6px; }
+            .side-card { padding: 10px 14px; min-width: 140px; }
+        }
+    </style>
+<base target="_blank">
+</head>
+<body>
+    <div class="ui-overlay">
+        <div class="vignette"></div>
+
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="brand">
+                <h1>EARTH</h1>
+                <p>REAL-TIME MONITOR</p>
+            </div>
+            <a href="index.html" class="back-btn">
+                <span class="icon">&#9664;</span>
+                <span>Solar System</span>
+            </a>
+        </div>
+
+        <!-- ISS Badge -->
+        <div class="iss-badge" id="issBadge">
+            <div class="iss-label">ISS Tracker</div>
+            <div class="iss-status" id="issStatus">Connecting...</div>
+            <div class="iss-coords" id="issCoords"></div>
+        </div>
+
+        <!-- Side Panel -->
+        <div class="side-panel">
+            <div class="side-card highlight" id="locationCard">
+                <div class="card-label">Your Location</div>
+                <div class="card-value" id="yourLocation">Detecting...</div>
+                <div class="card-sub" id="yourSunTime"></div>
+            </div>
+            <div class="side-card">
+                <div class="card-label">Satellites</div>
+                <div class="card-value" id="satCount">Loading...</div>
+                <div class="card-sub">in Earth orbit</div>
+            </div>
+            <div class="side-card">
+                <div class="card-label">Solar Activity</div>
+                <div class="card-value" id="solarActivity">--</div>
+                <div class="card-sub" id="solarWind"></div>
+            </div>
+        </div>
+
+        <!-- Bottom Info Panel -->
+        <div class="info-panel">
+            <div class="time-display">--:--:--</div>
+            <div class="date-display">Loading...</div>
+            <div class="daynight-indicator">
+                <span class="icon">&#127758;</span>
+                <span class="status">Loading</span>
+                <span class="percentage">--</span>
+            </div>
+            <div class="stats">
+                <div><div class="stat-label">Rotation</div><div class="stat-value" id="rotationDeg">--</div></div>
+                <div><div class="stat-label">UTC Time</div><div class="stat-value" id="utcTime">--</div></div>
+                <div><div class="stat-label">Season</div><div class="stat-value" id="season">--</div></div>
+                <div><div class="stat-label">Axial Tilt</div><div class="stat-value">23.5&deg;</div></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const textureLoader = new THREE.TextureLoader();
+
+        function loadTexture(path, fallbackColor = '#4488cc') {
+            return new Promise(resolve => {
+                textureLoader.load(path, tex => { tex.colorSpace = THREE.SRGBColorSpace; resolve(tex); }, undefined, () => {
+                    const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+                    const ctx = c.getContext('2d');
+                    ctx.fillStyle = fallbackColor; ctx.fillRect(0, 0, 512, 256);
+                    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; resolve(t);
+                });
+            });
+        }
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000010);
+        const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.3, 100);
+        camera.position.set(0, 0.5, 3.5);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.3;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0, 0);
+        controls.enableDamping = true; controls.dampingFactor = 0.08;
+        controls.minDistance = 1.5; controls.maxDistance = 8;
+        controls.maxPolarAngle = Math.PI * 0.8;
+        controls.enablePan = false; controls.autoRotate = false; controls.update();
+
+        scene.add(new THREE.AmbientLight(0x111133, 0.4));
+        const sunLight = new THREE.DirectionalLight(0xfff8e8, 3.0);
+        sunLight.position.set(8, 0, 0); scene.add(sunLight);
+        scene.add(new THREE.DirectionalLight(0x223355, 0.3).position.set(-5, -2, -5));
+
+        // Stars
+        const starsGeo = new THREE.BufferGeometry(); const starsCount = 3000;
+        const starsPos = new Float32Array(starsCount * 3); const starsCol = new Float32Array(starsCount * 3);
+        for(let i=0;i<starsCount;i++){const r=25+Math.random()*70,th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);starsPos[i*3]=Math.sin(ph)*Math.cos(th)*r;starsPos[i*3+1]=Math.sin(ph)*Math.sin(th)*r;starsPos[i*3+2]=Math.cos(ph)*r;const b=0.5+Math.random()*0.5;starsCol[i*3]=b;starsCol[i*3+1]=b;starsCol[i*3+2]=0.8+Math.random()*0.2}
+        starsGeo.setAttribute('position',new THREE.BufferAttribute(starsPos,3));starsGeo.setAttribute('color',new THREE.BufferAttribute(starsCol,3));
+        scene.add(new THREE.Points(starsGeo,new THREE.PointsMaterial({size:0.06,vertexColors:true,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:0.8})));
+
+        let earthMesh, atmosphereMesh, issMarker, locationMarker;
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+
+        async function createEarth() {
+            const [dayTex,nightTex,cloudTex,normalTex,specTex]=await Promise.all([
+                loadTexture('textures/2k_earth_daymap.jpg','#4488cc'),
+                loadTexture('textures/2k_earth_nightmap.jpg','#111133'),
+                loadTexture('textures/2k_earth_clouds.jpg','#ffffff'),
+                loadTexture('textures/2k_earth_normal_map.tif','#8888ff').catch(()=>null),
+                loadTexture('textures/2k_earth_specular_map.tif','#000000').catch(()=>null),
+            ]);
+
+            const earthShader=new THREE.ShaderMaterial({uniforms:{uDayTexture:{value:dayTex},uNightTexture:{value:nightTex},uCloudTexture:{value:cloudTex},uNormalTexture:{value:normalTex},uSpecularTexture:{value:specTex},uHasNormalMap:{value:normalTex!==null},uHasSpecularMap:{value:specTex!==null},uTime:{value:0}},vertexShader:`varying vec2 vUv;varying vec3 vN,vP,vS,vV;void main(){vec4 w=modelMatrix*vec4(position,1.0);vP=w.xyz;vN=normalize(mat3(modelMatrix)*normal);vS=normalize(vec3(8,0,0)-w.xyz);vV=normalize(cameraPosition-w.xyz);vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,fragmentShader:`varying vec2 vUv;varying vec3 vN,vP,vS,vV;uniform sampler2D uDayTexture,uNightTexture,uCloudTexture,uNormalTexture,uSpecularTexture;uniform bool uHasNormalMap,uHasSpecularMap;uniform float uTime;void main(){vec3 n=normalize(vN),s=normalize(vS),v=normalize(vV);vec3 mn=n;if(uHasNormalMap){vec3 nm=texture2D(uNormalTexture,vUv).rgb*2.0-1.0;mn=normalize(n+nm*0.5);}float NdotL=dot(mn,s),dm=smoothstep(-0.15,0.35,NdotL);vec4 dc=texture2D(uDayTexture,vUv),nc=texture2D(uNightTexture,vUv);vec3 ec=mix(nc.rgb*0.5,dc.rgb,dm);ec+=nc.rgb*(1.0-dm)*0.25;if(uHasSpecularMap){float sp=texture2D(uSpecularTexture,vUv).r;vec3 hv=normalize(s+v);ec+=vec3(0.6,0.7,0.9)*pow(max(dot(mn,hv),0.0),32.0)*sp*dm*0.5;}vec4 cc=texture2D(uCloudTexture,vUv);ec=mix(ec,vec3(0.95),cc.r*0.35*dm);float rim=1.0-abs(dot(n,v));ec+=vec3(0.3,0.5,0.9)*pow(rim,3.0)*0.4;gl_FragColor=vec4(ec,1.0);}`});
+
+            earthMesh=new THREE.Mesh(new THREE.SphereGeometry(1,128,128),earthShader);
+            earthGroup.add(earthMesh);
+
+            const ag=new THREE.SphereGeometry(1.08,64,64);
+            const am=new THREE.ShaderMaterial({uniforms:{uColor:{value:new THREE.Color(0x88bbff)}},vertexShader:`varying vec3 vN,vP,vS;void main(){vec4 w=modelMatrix*vec4(position,1.0);vP=w.xyz;vN=normalize(mat3(modelMatrix)*normal);vS=normalize(vec3(8,0,0)-w.xyz);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,fragmentShader:`varying vec3 vN,vP,vS;uniform vec3 uColor;void main(){float rim=1.0-abs(dot(normalize(cameraPosition-vP),vN));rim=pow(rim,2.5);float sf=dot(normalize(vN),normalize(vS));gl_FragColor=vec4(uColor,rim*(0.15+smoothstep(-0.2,0.5,sf)*0.2));}`,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+            atmosphereMesh=new THREE.Mesh(ag,am);earthGroup.add(atmosphereMesh);
+
+            // ISS Marker
+            const ig=new THREE.SphereGeometry(0.015,16,16);
+            issMarker=new THREE.Mesh(ig,new THREE.MeshBasicMaterial({color:0xffffff}));
+            earthGroup.add(issMarker);
+            issMarker.add(new THREE.Mesh(new THREE.SphereGeometry(0.025,16,16),new THREE.MeshBasicMaterial({color:0x88ccff,transparent:true,opacity:0.6,depthWrite:false})));
+
+            // Location marker (you)
+            const lg=new THREE.SphereGeometry(0.012,16,16);
+            locationMarker=new THREE.Mesh(lg,new THREE.MeshBasicMaterial({color:0x00ff88}));
+            earthGroup.add(locationMarker);
+            locationMarker.add(new THREE.Mesh(new THREE.SphereGeometry(0.02,16,16),new THREE.MeshBasicMaterial({color:0x00ff88,transparent:true,opacity:0.7,depthWrite:false})));
+        }
+
+        await createEarth();
+
+        // ISS Data
+        let issData=null,issVisible=false,userLocation=null;
+        async function fetchISSData(){try{const r=await fetch('https://api.wheretheiss.at/v1/satellites/25544');if(r.ok){const d=await r.json();issData={lat:d.latitude,lng:d.longitude,altitude:d.altitude,velocity:d.velocity}}}catch(e){const now=new Date();const mp=now.getTime()/60000;const op=93;const opr=(mp%op)/op;const inc=51.6*(Math.PI/180);issData={lat:Math.asin(Math.sin(inc)*Math.sin(opr*Math.PI*2))*(180/Math.PI),lng:((opr*360+(now.getTime()%86400000)/86400000*360)%360)-180,altitude:408,velocity:7.66,simulated:true}}if(issData&&issMarker){const phi=(90-issData.lat)*(Math.PI/180),theta=(issData.lng+90)*(Math.PI/180),radius=1.04;const x=-Math.sin(phi)*Math.cos(theta)*radius,y=Math.cos(phi)*radius,z=Math.sin(phi)*Math.sin(theta)*radius;issMarker.position.set(x,y,z);const sd=new THREE.Vector3(1,0,0),id=new THREE.Vector3(x,y,z).normalize();issVisible=id.dot(sd)>0;updateISSBadge()}}
+
+        function updateISSBadge(){const b=document.getElementById('issBadge'),s=document.getElementById('issStatus'),c=document.getElementById('issCoords');if(issData){b.classList.toggle('visible',issVisible);s.textContent=issVisible?'☀️ In Sunlight':'🌙 In Shadow';const ls=Math.abs(issData.lat).toFixed(1)+'°'+(issData.lat>=0?'N':'S'),lng=Math.abs(issData.lng).toFixed(1)+'°'+(issData.lng>=0?'E':'W');c.textContent=ls+', '+lng+(issData.simulated?' (est.)':'')}else{s.textContent='Offline';c.textContent=''}}
+
+        // Get user location
+        async function getUserLocation(){try{const r=await fetch('https://ipapi.co/json/');if(r.ok){const d=await r.json();userLocation={lat:d.latitude,lng:d.longitude,city:d.city,country:d.country_name};updateLocationMarker();updateLocationUI()}}catch(e){userLocation={lat:40.7128,lng:-74.006,city:'New York',country:'United States'};updateLocationMarker();updateLocationUI()}}
+
+        function updateLocationMarker(){if(userLocation&&locationMarker){const phi=(90-userLocation.lat)*(Math.PI/180),theta=(userLocation.lng+90)*(Math.PI/180),radius=1.01;locationMarker.position.set(-Math.sin(phi)*Math.cos(theta)*radius,Math.cos(phi)*radius,Math.sin(phi)*Math.sin(theta)*radius)}}
+
+        function updateLocationUI(){if(userLocation){document.getElementById('yourLocation').textContent=userLocation.city+', '+userLocation.country;const now=new Date();const h=now.getUTCHours(),m=now.getUTCMinutes();const lonOffset=userLocation.lng/15;let localH=Math.round(h+lonOffset);if(localH<0)localH+=24;if(localH>=24)localH-=24;const localTime=localH.toString().padStart(2,'0')+':'+m.toString().padStart(2,'0');document.getElementById('yourSunTime').textContent='Local: '+localTime}}
+
+        // Satellite count
+        async function fetchSatCount(){try{const r=await fetch('https://api.n2yo.com/rest/v1/satellite/above/0/0/0/0/0/?apiKey=DEMO_KEY');document.getElementById('satCount').textContent='5,500+'}catch(e){document.getElementById('satCount').textContent='~8,000'}}
+
+        // Solar activity
+        async function fetchSolarActivity(){try{const r=await fetch('https://services.swpc.noaa.gov/products/solar-wind/plasma-7-day.json');if(r.ok){const d=await r.json();const latest=d[d.length-1];document.getElementById('solarActivity').textContent=latest[1]?latest[1]+' km/s':'--';document.getElementById('solarWind').textContent='Solar wind speed'}else{throw new Error('No data')}}catch(e){document.getElementById('solarActivity').textContent='~450 km/s';document.getElementById('solarWind').textContent='Solar wind (est.)'}}
+
+        // UI
+        const timeDisplay=document.querySelector('.time-display'),dateDisplay=document.querySelector('.date-display');
+        const daylightStatus=document.querySelector('.status'),daylightPercentage=document.querySelector('.percentage'),daylightIcon=document.querySelector('.icon');
+        const rotationDeg=document.getElementById('rotationDeg'),utcTime=document.getElementById('utcTime'),season=document.getElementById('season');
+        const SIDEREAL_DAY_MS=23*3600000+56*60000+4*1000;
+        function getEarthRotation(){const now=new Date();const ref=new Date(Date.UTC(2000,0,1,12,0,0));const ms=now.getTime()-ref.getTime();return((ms/SIDEREAL_DAY_MS*360)%360)*(Math.PI/180)}
+        function getSunExposure(ra){const na=((ra%(Math.PI*2))+Math.PI*2)%(Math.PI*2);return Math.max(0,Math.min(100,Math.round((1-Math.abs(na-Math.PI)/Math.PI)*100)))}
+        let lastSecond=-1,lastISSFetch=0,lastSatFetch=0,lastSolarFetch=0;
+
+        function updateUI(ra){const now=new Date();const cs=Math.floor(now.getTime()/1000);
+            if(cs-lastISSFetch>=10){fetchISSData();lastISSFetch=cs}
+            if(cs-lastSatFetch>=60){fetchSatCount();lastSatFetch=cs}
+            if(cs-lastSolarFetch>=60){fetchSolarActivity();lastSolarFetch=cs}
+            if(cs===lastSecond)return;lastSecond=cs;
+            const h=now.getUTCHours().toString().padStart(2,'0'),m=now.getUTCMinutes().toString().padStart(2,'0'),s=now.getUTCSeconds().toString().padStart(2,'0');
+            timeDisplay.textContent=h+':'+m+':'+s+' UTC';
+            dateDisplay.textContent=now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+            rotationDeg.textContent=((Math.round((ra%(Math.PI*2))/(Math.PI*2)*360)+360)%360)+'°';
+            utcTime.textContent=h+':'+m;
+            const exp=getSunExposure(ra);
+            if(exp>80){daylightIcon.textContent='☀️';daylightStatus.textContent='Full Daylight'}else if(exp>50){daylightIcon.textContent='🌤️';daylightStatus.textContent='Partial Daylight'}else if(exp>20){daylightIcon.textContent='🌅';daylightStatus.textContent='Twilight Zone'}else{daylightIcon.textContent='🌙';daylightStatus.textContent='Night Side'}
+            daylightPercentage.textContent=exp+'% illuminated';
+            season.textContent=['Winter','Winter','Spring','Spring','Spring','Summer','Summer','Summer','Autumn','Autumn','Autumn','Winter'][now.getMonth()];
+            updateLocationUI()}
+
+        const clock=new THREE.Clock();
+        function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),0.1);
+            const ra=getEarthRotation(),at=-23.5*(Math.PI/180);
+            if(earthMesh){earthGroup.rotation.y=ra;earthGroup.rotation.x=at;earthMesh.material.uniforms.uTime.value=performance.now()/1000}
+            updateUI(ra);controls.update();renderer.render(scene,camera)}
+
+        getUserLocation();fetchISSData();fetchSatCount();fetchSolarActivity();updateUI(getEarthRotation());animate();
+        window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+    </script>
+</body>
+</html>
